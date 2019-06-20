@@ -1,165 +1,282 @@
 #include<stdio.h>
-#incldue"controller.h"
+#include<stdlib.h>
+#include <windows.h>
+#include <graphics.h>
+#include <process.h> 
+
+#include"controller.h"
 #include"point.h"
 #include"tools.h"
 #include"message.h"
 #include"rider.h"
 #include"map.h"
-#include"Menu.h" 
-#include<stdlib.h>
-#include <windows.h>
-//È«¾Ö±äÁ¿£º 
-int sysclock=1;
-int money=1000;
-Menu *menu=NULL;
-menu=(Menu*)calloc(1,sizeof(Menu));			//¶©µ¥¶¯Ì¬Êı×é 
-Rider *rider=NULL;
-rider=(Rider*)calloc(1,sizeof(Rider));		//ÆïÊÖ¶¯Ì¬Êı×é 
-void start()
+#include"menu.h" 
+#include"cartoon.h"
+//å…¨å±€å˜é‡ï¼š 
+HANDLE hMutex = CreateMutex(NULL,FALSE,NULL);
+int sysclock=0;
+int money=850;
+struct menu Menu[301]={0};	//è®¢å•åŠ¨æ€æ•°ç»„ 
+Rider rider[100];		//éª‘æ‰‹åŠ¨æ€æ•°ç»„ 
+int Graph[100][100];
+int size=0;				//è®¢å•æ•°é‡ï¼Œæ–°å¢çš„å…¨å±€å˜é‡ 
+int oldsize=0;			//é¼ æ ‡è¾“å…¥æ—¶è¦ç”¨çš„ï¼Œåˆ¤æ–­æ˜¯å¦æ–°å¢è®¢å• 
+struct stop{
+			int ridern;
+			int name;
+			int x;
+			int y;
+			int flag;
+			int iscan;
+		};		
+struct message Message={0};			//MESSAGE åˆå§‹åŒ– 
+				//æ¥å•æ•°
+			
+unsigned __stdcall start(void* pArguments)
 {
-	//ÏŞ¶¨ÆïÊÖÆğÊ¼Î»ÖÃ
-*	rider[0].rider(x,y);			//x,y¾ßÌå´ı²¹³ä 
-	int boolnumber=0;			//ÅĞ¶ÏÊÇ·ñÆÆ²úÊ¹ÓÃ 
+	SetWindowSize(140,120);			//åŸå›¾ä¸º78*51  
+	Message.messagemoney=money;
+	Message.accomplish=0;		//å®Œæˆæ•° 
+	Message.totalovertime=0;	//è¶…æ—¶æ•° 
+	Message.sum=0;
+	int boolnumber=0;				//åˆ¤æ–­æ˜¯å¦ç ´äº§ä½¿ç”¨ 
 	int j=0;			
-	int number=0;		//¶ÁÎÄ¼şÖĞµÄĞòºÅ 
-	int size=0;      //¿ØÖÆ¶©µ¥Êı×éµÄ´óĞ¡ 
-	int righttime=0;   //ÅĞ¶ÏÊÇ·ñµ½´ï½Óµ¥Ê±¿Ì 
+	int number=0;		//è¯»æ–‡ä»¶ä¸­çš„åºå· 
+	//int size=0;      //æ§åˆ¶è®¢å•æ•°ç»„çš„å¤§å° 
+	int righttime=0;   //åˆ¤æ–­æ˜¯å¦åˆ°è¾¾æ¥å•æ—¶åˆ» 
 	int value=1;
+	int state=0;	//è®°å½•æ˜¯å¦æ¥å®Œäº†æ‰€æœ‰å• 
 	Map a;
-	a.init();		//»æÖÆµØÍ¼
-	//³õÊ¼»¯message
-	Message message;
-	message.messagemoney=money;
-	message.accomplish=0;		//Íê³ÉÊı 
-	message.overtime=0;			//³¬Ê±Êı 
-	message.sum=0;				//½Óµ¥Êı 
-	FILE *fw=fopen("seles.txt","r"); //´ò¿ªÎÄ¼ş 
-	for(;value==1;sysclock++){	 			//´óÑ­»·£¬¿ØÖÆÕû¸ö½ø³Ì 
-
-		//1¡¢ÅĞ¶ÏÊÇ·ñÆÆ²ú 
-		boolnumber=bankruptcy(money);	
-		if(boolnumber==0)
-			break;
-		//2¡¢ÂòÆïÊÖµÄº¯Êı
-		buyrider();														
-		//3¡¢¶ÁÎÄ¼ş²¢·ÖÅä¶©µ¥ 
-		for(;sysclock==righttime&&(!feof(fw));){			//ÅĞ¶ÏÊÇ·ñµ½´ï½Óµ¥Ê±¿ÌÇÒÎÄ¼şÃ»ÓĞ¶ÁÍê 
-			if(sysclock==1){
-				fscanf(fw,"%d",&number);
-				fscanf(fw,"%d",&righttime);
+	a.init();		//ç»˜åˆ¶åœ°å›¾ã€‚ã€‚ã€‚ã€‚ã€‚ åŠ¨ç”»çš„åœ°å›¾ç»˜åˆ¶åœ¨cartonné‡Œ 
+	int p=0;
+	int q=0;
+	int o=0;
+	int i=0;
+	FILE *fw=fopen("3.txt","r"); //æ‰“å¼€æ–‡ä»¶ 
+	FILE *fp=fopen("outputs.txt","w");      //è¾“å‡ºæ–‡ä»¶ 
+	for(;is_run()&&value==1;delay_fps(60)){	 			//å¤§å¾ªç¯ï¼Œæ§åˆ¶æ•´ä¸ªè¿›ç¨‹ 
+		WaitForSingleObject(hMutex,INFINITE);			//çº¿ç¨‹äº’æ–¥è¯­å¥ ï¼Œç›¸å½“äºä¸Šé” 
+		
+		
+		int rightnowfinish[300]={0};
+		int rightnowticket[300]={0};
+		struct stop Stop[310]={0};
+		Stop[0].ridern=-1;
+		Stop[1].ridern=-1;
+		p=0;
+		q=0;
+		o=0;
+		i=0;
+		
+		//2.æ‰“å°åœ°å›¾ ï¼Œåœ°å›¾åªæ‰“å°ä¸€æ¬¡ 
+		PIMAGE img=newimage();
+		getimage(img,"C:/Users/70658/Desktop/car/map2.jpg"); 
+		putimage(0,0,img);
+		//3.æ‰“å°éª‘æ‰‹ ,ç­‰æ–‡ä»¶è¾“å…¥æ²¡é—®é¢˜åï¼Œåˆ é™¤æ–‡ä»¶è¾“å…¥çš„ç›¸å…³éƒ¨åˆ†ï¼Œå†è°ƒç”¨è¿™ä¸ªéƒ¨åˆ† 
+		if(size!=0)							
+			printmove();                                       
+		else{
+			//SetColor(FOREGROUND_INTENSITY|FOREGROUND_RED|FOREGROUND_GREEN);
+			point a(15,34);
+			//a.PrintRider();
+			carprint(a.x,a.y,0);
+			//SetColor(FOREGROUND_INTENSITY);	
+		}
+		xyprintf(0,50,"SIZE = %d",size);
+		char str[20];
+		sprintf(str, "fps %.02f", getfps()); //è°ƒç”¨getfpså–å¾—å½“å‰å¸§ç‡
+		setcolor(WHITE);
+		outtextxy(0, 0, str);
+		
+		printorder();
+		printcartoonmessage(Message);
+		
+		
+        xyprintf(720, 0, "x = %10d  y = %10d",
+                 msg.x, msg.y);
+                 //ç¬¬ä¸€è¡Œæ˜¾ç¤ºé¼ æ ‡x,yä½ç½®.
+        xyprintf(720, 20, "move  = %d down  = %d up    = %d",
+                 (int)msg.is_move(),
+                 (int)msg.is_down(),
+                 (int)msg.is_up());
+                 //ç¬¬äºŒè¡Œæ˜¾ç¤ºé¼ æ ‡æ˜¯å¦æœ‰åŠ¨ä½œ,æŒ‰é”®çŠ¶æ€
+        xyprintf(720, 40, "left  = %d mid   = %d right = %d",
+                 (int)msg.is_left(),
+                 (int)msg.is_mid(),
+                 (int)msg.is_right());
+                 //ç¬¬ä¸‰è¡Œæ˜¾ç¤ºé¼ æ ‡è¢«æŒ‰ä¸‹çš„æŒ‰é”®(å·¦,ä¸­,å³)
+        xyprintf(720, 60, "wheel = %d  wheel rotate = %d",
+                 (int)msg.is_wheel(),
+                 msg.wheel);
+                 //ç¬¬å››è¡Œæ˜¾ç¤ºæ»šè½®ä½ç½®
+        xyprintf(720, 80, " %d   %d",        
+        		msg.x/27/3*2,
+				msg.y/27/3*2);
+				
+		for(j=0;j<size;j++){
+			if(Menu[j].truereach!=1&&sysclock-Menu[j].endtime>=30){		//ç ´äº§ 
+				money=-100;
+				if(money<0)					
+					break;
 			}
-			if(size!=0){
-				menu=(Menu*)realloc(menu,(size+1)*sizeof(Menu));	//½«¶©µ¥Êı×éµÄ´óĞ¡¼ÓÒ» 
-				menu[size].x1=0;						//³õÊ¼»¯ĞÂÔö¼ÓµÄ¶©µ¥ 
-				menu[size].y1=0;
-				menu[size].x2=0;
-				menu[size].y2=0;
-				menu[size].p=NULL;
-				menu[size].take=0;
-				menu[size].finish=0;					
-			}
-			fscanf(fw,"%d",&menu[size].x1);
-			fscanf(fw,"%d",&menu[size].y1);
-			fscanf(fw,"%d",&menu[size].x2);
-			fscanf(fw,"%d",&menu[size].y2);
-			menu[size].endtime=righttime+30;				
-			size++;											
-			message.sum+=1;					//½Óµ¥Êı+1
-			//4¡¢·ÖÅä¶©µ¥ 
-			allocatemenu(size-1);		//size-1Îª´Ë¿ÌĞÂ½Ó¶©µ¥ÔÚ¶©µ¥Êı×éÖĞµÄÏÂ±ê 
-			if(feof(fw)==0){
-				fscanf(fw,"%d",&number);
-				fscanf(fw,"%d",&righttime);	
-			}
-			if(feof(fw)!=0)
-				break;
-		}								
-*		//5¡¢ÅĞ¶ÏÊÇ·ñµ½´ïËÍ²Íµã£¬ÅĞ¶ÏÊÇ·ñ³¬Ê±,²ÉÓÃ±éÀú¶©µ¥µÄ·½·¨ 
-		for(j=0;j<size;j++){				
-*			if(menu[j].x1==(menu[j].p)->x&&menu[j].y1==(menu[j].p)->y&&menu[j].take==0){ //ÆïÊÖµ½´ï½Ó²ÍµØ 
-				menu[j].take=1;
-			}
-			if(menu[j].x2==(menu[j].p)->x&&menu[j].y2==(menu[j].p)->y&&menu[j].take==1){	//ÆïÊÖµ½´ïËÍ²ÍµØ 
-				if(sysclock-menu[j].endtime>=60){		//ÆÆ²ú 
-					money=-100;
-					boolnumber=bankruptcy();
-					if(boolnumber==0)	
-						break;
-				}
-				else if(sysclock-menu[j].endtime>=30){	//³¬Ê±·£¿î50,³¬Ê±Êı+1 
+			else if(Menu[j].trueovertime==0&&Menu[j].truereach!=1&&sysclock-Menu[j].endtime>=0){	//è¶…æ—¶ç½šæ¬¾50,è¶…æ—¶æ•°+1 
 					money-=50;
-					message.overtime+=1;
-					menu[j].finish=1; 
-				}
-				else{						//ËÍ²Í³É¹¦£¬Ç®Êı¼Ó10,Íê³ÉÊı+1 
+					Message.totalovertime+=1;
+					Menu[j].p->overtime+=1;
+					Menu[j].trueovertime=1;
+					rightnowticket[q]=j+1;
+					q++;
+			}
+		}
+		//1ã€åˆ¤æ–­æ˜¯å¦ç ´äº§ 
+		boolnumber=bankruptcy(money);	
+		/*if(boolnumber==0)
+			break;		*/					
+		//5ã€åˆ¤æ–­æ˜¯å¦åˆ°è¾¾é€é¤ç‚¹ï¼Œåˆ¤æ–­æ˜¯å¦è¶…æ—¶,é‡‡ç”¨éå†è®¢å•çš„æ–¹æ³• 
+		for(j=0;j<size;j++){				
+			if((((Menu[j].x1-2)==(Menu[j].p)->x&&Menu[j].y1==(Menu[j].p)->y)||(Menu[j].x1==(Menu[j].p)->x&&(Menu[j].y1+4)==(Menu[j].p)->y)||(Menu[j].x1==(Menu[j].p)->x&&(Menu[j].y1-4)==(Menu[j].p)->y)||((Menu[j].x1+2)==(Menu[j].p)->x&&(Menu[j].y1)==(Menu[j].p)->y))&&(Menu[j].trueget==0)){ //éª‘æ‰‹åˆ°è¾¾æ¥é¤åœ° 
+				Menu[j].trueget=1;
+				Stop[o].flag=1; 
+				Stop[o].x=Menu[j].x1;
+				Stop[o].y=Menu[j].y1;
+				Stop[o].name=1; //1æ˜¯é¤é¦† 
+				Stop[o].ridern = Menu[j].underline;
+				Stop[o].iscan =1;
+				o++; 
+				SetCursorPosition(Menu[j].x1,Menu[j].y1-1);
+				printf("   ");
+			}
+			if((((Menu[j].x2-2)==(Menu[j].p)->x&&Menu[j].y2==(Menu[j].p)->y)||(Menu[j].x2==(Menu[j].p)->x&&(Menu[j].y2+4)==(Menu[j].p)->y)||(Menu[j].x2==(Menu[j].p)->x&&(Menu[j].y2-4)==(Menu[j].p)->y)||((Menu[j].x2+2)==(Menu[j].p)->x&&(Menu[j].y2)==(Menu[j].p)->y))&&(Menu[j].trueget==1)&&(Menu[j].truereach!=1))	//éª‘æ‰‹åˆ°è¾¾é€é¤åœ° 
+			{						//é€é¤æˆåŠŸï¼Œé’±æ•°åŠ 10,å®Œæˆæ•°+1 
+				if(Menu[j].trueovertime==0){
+					
 					money+=10;
-					message.accomplish+=1;
-					menu[j].finish=1; 
-				} 	
+				}
+				if(o>=1){
+						if(Stop[o-1].x==Stop[o].x&&Stop[o-1].y==Stop[o].y)//å¦‚æœstopä¸­å‰ä¸€ä¸ªçš„åæ ‡ä¸é¤é¦†åæ ‡ç›¸ç­‰ï¼Œåˆ™æ˜¯é¤å®¢ 
+							Stop[o-1].name=3; //3æ˜¯é¤å®¢
+						else{
+							Stop[o].ridern = Menu[j].underline;
+							Stop[o].flag = 1;
+							Stop[o].x=Menu[j].x2;
+							Stop[o].y=Menu[j].y2;
+							Stop[o].name=2; //2æ˜¯é£Ÿå®¢
+							o++;
+						} 
+				}
+				else{
+					
+					Stop[o].ridern = Menu[j].underline;
+					Stop[o].flag = 1;
+					Stop[o].x=Menu[j].x2;
+					Stop[o].y=Menu[j].y2;
+					Stop[o].name=2; //2æ˜¯é£Ÿå®¢
+					o++;
+				} 
+				SetCursorPosition(Menu[j].x2,Menu[j].y2-1);
+				printf("   ");
+				Message.accomplish+=1;
+				Menu[j].truereach=1;
+				Menu[j].p->achieve+=1;
+				rightnowfinish[p]=j+1;
+				p++;
+				deletelist(j);
 			} 
 		}
-		if(boolnumber==0)
-			break;
-		//6¡¢¼ÆËã²¢ĞŞ¸Ä½Óµ¥ÆïÊÖµÄĞĞÊ»Â·Ïß
-*		for(j=0;j<sizeof(rider)/sizeof(Rider);j++)
-			rider[j].CalculatePath();
-		//7¡¢¶ÔÆïÊÖ½øĞĞÒÆ¶¯
-		printmove();
-		//8¡¢´òÓ¡µ±Ç°ĞÅÏ¢ 
-		printmessage(message);
-		//9¡¢Èç¹ûËùÓĞ¶©µ¥Íê³É£¬Ìø³öÑ­»·
+		
+		//7ã€å°†ä¿¡æ¯è¾“å…¥åˆ°æ–‡ä»¶ä¸­
+		fprintf(fp,"æ—¶é—´ï¼š%d\n",sysclock);
+		fprintf(fp,"é’±ï¼š%d\n",money);
+		fprintf(fp,"æ¥å•æ•°ï¼š%d\n",Message.sum);
+		fprintf(fp,"å®Œæˆæ•°ï¼š%d;ç»“å•ï¼š",Message.accomplish);
+		for(i=0;rightnowfinish[i]!=0;i++){
+			if(rightnowfinish[i+1]==0){
+				fprintf(fp,"%d ",rightnowfinish[i]);
+				fprintf(fp," ");
+			}
+			else{
+				fprintf(fp,"%d ",rightnowfinish[i]);
+				fprintf(fp," ");
+			}
+		}
+		fprintf(fp,";\n");
+		fprintf(fp,"è¶…æ—¶æ•°ï¼š%d;ç½šå•: ",Message.totalovertime);
+		for(i=0;rightnowticket[i]!=0;i++){
+			if(rightnowticket[i+1]==0){
+				fprintf(fp,"%d",rightnowticket[i]);
+				fprintf(fp," ");
+			}
+			else{
+				fprintf(fp,"%d ",rightnowticket[i]);
+				fprintf(fp," ");
+			}
+		}
+		fprintf(fp,";\n");
+		int cyc,qqq=0;
+		for(j=0;rider[j].exist==1;j++){
+			fprintf(fp,"éª‘æ‰‹%dçš„ä½ç½®: %d, %d; åœé :",j+1,(rider[j].x-1)/2,(rider[j].y-2)/4);//2*rider[i].x+1,4*rider[i].y+2
+			for(i=0;Stop[i].flag!=0;i++){
+				if(Stop[i].ridern==j){
+					if(Stop[i].name==1){
+						for(cyc=i;Stop[cyc].flag==1;cyc++){
+							if(Stop[cyc].name==2&&Stop[cyc].ridern==j){
+								fprintf(fp,"é¤å®¢ ");
+								qqq=1;
+								Stop[cyc].name=3;
+							}
+						}
+						if(qqq==0)
+							fprintf(fp,"é¤å… ");
+					}
+					if(Stop[i].name==2){
+						for(cyc=i;Stop[cyc].flag==1;cyc++){
+							if(Stop[cyc].name==1&&Stop[cyc].ridern==j){
+								fprintf(fp,"é¤å®¢ ");
+								qqq=1;
+								Stop[cyc].name=3;
+							}
+						}
+						if(qqq==0)
+							fprintf(fp,"é£Ÿå®¢ "); 
+					}	
+					if(Stop[i].name ==3)
+						fprintf(fp,"é¤å®¢ "); 
+					fprintf(fp,"%d %d ",(Stop[i].x-1)/2,(Stop[i].y-2)/4);
+					qqq=0;
+					}
+				}
+			fprintf(fp,";\n");
+		} 
+		
+				
+		
+		//10ã€å¦‚æœæ‰€æœ‰è®¢å•å®Œæˆï¼Œè·³å‡ºå¾ªç¯
 		for(j=0;j<size;j++){
-			if(menu[j].finish==0)
+			if(Menu[j].truereach==0)
 			 	break;
 		}
-		if(j==size)
-			break; //¶©µ¥Êı×éÖĞµÄËùÓĞ¶©µ¥¶¼Íê³ÉÁË£¬Ìø³öÑ­»·¡£	
-		sleep(1000); 
-	}
-	fclose(fw);			//¹Ø±ÕÎÄ¼ş	
+		if(j==size&&state==1)
+			break; 			//è®¢å•æ•°ç»„ä¸­çš„æ‰€æœ‰è®¢å•éƒ½å®Œæˆäº†ï¼Œè·³å‡ºå¾ªç¯ã€‚	
+		
+		sysclock++;
+		Sleep(500);
+		ReleaseMutex(hMutex);		//è§£é” 
+		
+	}		
+	fclose(fw);				//å…³é—­æ–‡ä»¶
+	fclose(fp);	//å…³é—­æ–‡ä»¶
+	_endthreadex(0);	
+	return 0;
 }
   
-  
-  
-  
-  
-  
-int bankruptcy(int money)   //ÅĞ¶Ïµ±Ç°ÊÇ·ñÆÆ²ú 
+int bankruptcy(int money)   //åˆ¤æ–­å½“å‰æ˜¯å¦ç ´äº§ 
 {
+	int i;
 	if(money<0){
-*		ÆÆ²úºó´òÓ¡ĞÅÏ¢µÄº¯ÊıÃû()
+		SetCursorPosition(34,0);
+		performance();		
 		return 0;
 	}
 	else
 		return 1;
 }
-void printmove(){
-	int i;
-	int x;
-	int y;
-	point a; 
-	for(i=0;i<sizeof(rider)/sizeof(Rider);i++){
-*		x=rider[i].List Path;	//rider[i]µÄĞĞÊ»Â·ÏßÖĞµÄÏÂ¸öÒ»µã£¬¶Á³öËüµÄ×ø±ê£¬²¢ÔÚ¸Ã×ø±êÏÂ´òÓ¡ 
-*		y=rider[i].List Path;
-		a.changeposi(rider[i].x,rider[i].y);
-		a.clear();         				//Çå³şÆïÊÖÔ­Î»ÖÃ 
-		a.changeposi(x,y);
-		a.PrintCanteen();  				//´òÓ¡ÆïÊÖÍ¼°¸º¯Êı
-*		rider[i].(x,y);
-	}
-}
-ĞèÒª¿¼ÂÇµÄÎÊÌâ£º
-ÈçºÎÌø³öÑ­»·£¨ÅĞ¶ÏÆïÊÖµÄ¶©µ¥Á´±íÊÇ·ñÎª¿Õ£¬·ÅÔÚÄÄÀïºÏÊÊ£¬»¹ÓĞ×¢ÒâÃ¿Íê³ÉÒ»µ¥ºó¶ÔÆïÊÖ¶©µ¥Á´±íµÄÉ¾³ı£© 
-¸÷¸öÏ¸½Ú£¡
-ÓĞ¸öÎÊÌâ£º
-
-µ½ÁËËÍ²ÍµãÒÔºó£¬ĞèÒªÇå³ıµôÕâ¸ö¶©µ¥Âğ£¿
-¶©µ¥ÀïÃæÊÇ·ñ»¹Ğè¼Ó¸ö¸Ã¶©µ¥ÊÇ·ñËÍÍêµÄ×´Ì¬¡£ 
-1¡¢ÆïÊÖÊı×é³¤¶ÈµÄÎÊÌâ¡£ 
-2¡¢¶©µ¥ÖĞ½á¹¹Ìå¼Ó±äÁ¿µÄÎÊÌâ¡£ 
-3¡¢ÉÏÃæĞÇºÅ±ê³öµÄÎÊÌâ¡£ 
-
-
-
-ÆïÊÖÊı×é³¤¶È¡£ 
-rider.hÎÄ¼şÖĞÊÇ·ñ¼ÓÒ»¸ö¸Ä±äÆïÊÖÖĞx,yµÄº¯Êı¡£ 
